@@ -2307,6 +2307,11 @@ function AdvancedFocusCastBarMixin:OnEvent(event, ...)
 		if delayHiding then
 			self:QueueDelayedHide()
 		else
+			-- when testing against yourself, this avoids breakage when the testing spell is in a macro trying to cast other stuff
+			if event == "UNIT_SPELLCAST_FAILED" and UnitIsUnit(AdvancedFocusCastBarSaved.Settings.Unit, "player") then
+				return
+			end
+
 			self:Hide()
 		end
 	elseif event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_TARGET_CHANGED" then
