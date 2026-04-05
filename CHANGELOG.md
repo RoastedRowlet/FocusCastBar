@@ -1,3 +1,7 @@
+## Version 1.0.12
+
+- various bugfixes
+
 ## Version 1.0.11
 
 - for convenience, failed casts originating from the player when focusing yourself for testing purposes will no longer hide the bar

@@ -1866,11 +1866,11 @@ function AdvancedFocusCastBarMixin:OnUpdate(elapsed)
 			and AdvancedFocusCastBarSaved.Settings.FeatureFlags[Private.Enum.FeatureFlag.UnfillChannels]
 		then
 			self.CastBar.Positioner:SetValue(self.castInformation.duration:GetRemainingDuration())
-			self.CastBar.InterruptBar:SetValue(interruptDuration:GetRemainingDuration())
 		else
 			self.CastBar.Positioner:SetValue(self.castInformation.duration:GetElapsedDuration())
-			self.CastBar.InterruptBar:SetValue(interruptDuration:GetRemainingDuration())
 		end
+
+		self.CastBar.InterruptBar:SetValue(interruptDuration:GetRemainingDuration())
 
 		self.CastBar.InterruptBar:SetAlphaFromBoolean(
 			interruptDuration:IsZero(),
@@ -1878,6 +1878,10 @@ function AdvancedFocusCastBarMixin:OnUpdate(elapsed)
 			C_CurveUtil.EvaluateColorValueFromBoolean(self.castInformation.notInterruptible, 0, 1)
 		)
 	end
+
+	-- soft hides the bar if the ending event is for some reason missing.
+	-- needs to be this far down to avoid overlapping with out of range alpha
+	self:SetAlphaFromBoolean(self.castInformation.duration:IsZero(), 0, 1)
 end
 
 function AdvancedFocusCastBarMixin:ShowGlow(isImportant)
@@ -2285,10 +2289,12 @@ function AdvancedFocusCastBarMixin:OnEvent(event, ...)
 
 				if
 					AdvancedFocusCastBarSaved.Settings.FeatureFlags[Private.Enum.FeatureFlag.UseInterruptSourceClassColor]
+					and interruptedBy ~= nil
 				then
 					local className = select(2, UnitClassFromGUID(interruptedBy))
-					-- unsure if className yields something for pets, so nilcheck it until confirmed
-					interruptColor = className == nil and nil or C_ClassColor.GetClassColor(className)
+					if className ~= nil then
+						interruptColor = C_ClassColor.GetClassColor(className)
+					end
 				end
 
 				if interruptColor == nil then
@@ -2364,6 +2370,7 @@ function AdvancedFocusCastBarMixin:OnEvent(event, ...)
 		self.castInformation = self:QueryCastInformation()
 
 		if self.castInformation == nil then
+			self:Hide()
 			return
 		end
 
@@ -2376,6 +2383,7 @@ function AdvancedFocusCastBarMixin:OnEvent(event, ...)
 		self.castInformation = self:QueryCastInformation()
 
 		if self.castInformation == nil then
+			self:Hide()
 			return
 		end
 
