@@ -1807,12 +1807,12 @@ function AdvancedFocusCastBarMixin:OnEditModeExit()
 	self:Hide()
 end
 
-function AdvancedFocusCastBarMixin:SetAlphaFromFeatureFlag(interruptDuration)
+function AdvancedFocusCastBarMixin:SetAlphaFromFeatureFlag(interruptDuration, opacity)
 	if AdvancedFocusCastBarSaved.Settings.FeatureFlags[Private.Enum.FeatureFlag.HideWhenUninterruptible] then
 		self:SetAlphaFromBoolean(
 			self.castInformation.notInterruptible,
 			0,
-			C_CurveUtil.EvaluateColorValueFromBoolean(interruptDuration:IsZero(), 1, 0)
+			C_CurveUtil.EvaluateColorValueFromBoolean(interruptDuration:IsZero(), opacity, 0)
 		)
 	end
 end
@@ -1843,12 +1843,17 @@ function AdvancedFocusCastBarMixin:OnUpdate(elapsed)
 		self.CastBar.CastTimeText:SetFormattedText("%.1f", self.castInformation.duration:GetRemainingDuration())
 	end
 
+	-- changing the opacity multiple times can result in some unexpected output (i.e. alternating between 0 and 1 would look like .5 
+	-- similar to how an LED works) additionally, this ensures following calls will have the expected opacity since they're all pointing
+	-- to the same value
+	local theOpacity = AdvancedFocusCastBarSaved.Settings.Opacity
+
 	if self.interruptId ~= nil then
 		if AdvancedFocusCastBarSaved.Settings.OutOfRangeOpacity < 1 then
 			local inRange = C_Spell.IsSpellInRange(self.interruptId, AdvancedFocusCastBarSaved.Settings.Unit)
 
 			if inRange ~= nil then
-				self:SetAlpha(inRange == true and 1 or AdvancedFocusCastBarSaved.Settings.OutOfRangeOpacity)
+				theOpacity = inRange == true and theOpacity or AdvancedFocusCastBarSaved.Settings.OutOfRangeOpacity
 			end
 		end
 
@@ -1858,7 +1863,7 @@ function AdvancedFocusCastBarMixin:OnUpdate(elapsed)
 			return
 		end
 
-		self:SetAlphaFromFeatureFlag(interruptDuration)
+		self:SetAlphaFromFeatureFlag(interruptDuration, theOpacity)
 		self:DeriveAndSetNextColor(interruptDuration)
 
 		if
@@ -1871,17 +1876,19 @@ function AdvancedFocusCastBarMixin:OnUpdate(elapsed)
 		end
 
 		self.CastBar.InterruptBar:SetValue(interruptDuration:GetRemainingDuration())
-
+		
 		self.CastBar.InterruptBar:SetAlphaFromBoolean(
 			interruptDuration:IsZero(),
 			0,
-			C_CurveUtil.EvaluateColorValueFromBoolean(self.castInformation.notInterruptible, 0, 1)
+			C_CurveUtil.EvaluateColorValueFromBoolean(self.castInformation.notInterruptible, 0, theOpacity)
 		)
+		-- the soft hide immediately following this would override hiding the bar so return.
+		return
 	end
 
 	-- soft hides the bar if the ending event is for some reason missing.
 	-- needs to be this far down to avoid overlapping with out of range alpha
-	self:SetAlphaFromBoolean(self.castInformation.duration:IsZero(), 0, 1)
+	self:SetAlphaFromBoolean(self.castInformation.duration:IsZero(), 0, theOpacity)
 end
 
 function AdvancedFocusCastBarMixin:ShowGlow(isImportant)
@@ -2094,7 +2101,18 @@ function AdvancedFocusCastBarMixin:ProcessCastInformation()
 			local interruptDuration = C_Spell.GetSpellCooldownDuration(self.interruptId)
 
 			if interruptDuration ~= nil then
-				self:SetAlphaFromFeatureFlag(interruptDuration)
+				-- ensure initial opacity is correct when out of range.
+				local theOpacity = AdvancedFocusCastBarSaved.Settings.Opacity
+
+				if AdvancedFocusCastBarSaved.Settings.OutOfRangeOpacity < 1 then
+					local inRange = C_Spell.IsSpellInRange(self.interruptId, AdvancedFocusCastBarSaved.Settings.Unit)
+
+					if inRange ~= nil then
+						theOpacity = inRange == true and theOpacity or AdvancedFocusCastBarSaved.Settings.OutOfRangeOpacity
+					end
+				end
+
+				self:SetAlphaFromFeatureFlag(interruptDuration, theOpacity)
 			end
 		end
 
@@ -2346,6 +2364,11 @@ function AdvancedFocusCastBarMixin:OnEvent(event, ...)
 		end
 
 		if self:UnitIsIrrelevant() then
+			-- hide if focus moved to an irrelevant unit. 
+			if self:IsShown() then
+				self:Hide()
+			end
+
 			return
 		end
 
